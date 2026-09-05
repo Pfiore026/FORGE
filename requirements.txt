@@ -1,0 +1,9 @@
+streamlit>=1.38.0
+python-dateutil>=2.9.0
+
+# Wire in for production (uncomment as you connect real services):
+# supabase>=2.6.0            # Postgres + Auth + Storage backend
+# pytesseract>=0.3.13        # OCR for image-based documents
+# pdfplumber>=0.11.4         # PDF text extraction
+# python-docx>=1.1.2         # DOCX text extraction
+# cryptography>=43.0.0       # Field-level encryption helpers

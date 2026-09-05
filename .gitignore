@@ -1,0 +1,38 @@
+﻿# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+.venv/
+venv/
+env/
+
+# Local AI / agent state
+.agents/
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Logs and test output
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Sensitive application data
+uploads/
+case-documents/
+evidence/
+*.sqlite
+*.sqlite3
+*.db
