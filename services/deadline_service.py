@@ -20,7 +20,16 @@ from .citation_guard import RuleCitationStore
 
 DEFAULT_CORPUS_PATH = "data/frcp_rules_corpus.json"
 
+# Convenience presets so the UI can offer a dropdown of common triggering
+# events instead of requiring free-text rule numbers. This layer never
+# overrides the Strict Citation Mandate -- every rule listed here has
+# verbatim text loaded in data/frcp_rules_corpus.json, and citation lookups
+# still go through RuleCitationStore, which refuses on any miss.
 KNOWN_TRIGGERS = {
+    "Complaint filed with the court (Rule 4(m) service deadline)": {
+        "rule_cited": "FRCP 4(m)", "period_days": 90,
+        "citation_keys": ["6(a)(1)", "4(m)"],
+    },
     "Service of summons and complaint (personal or waiver)": {
         "rule_cited": "FRCP 12(a)(1)(A)(i)", "period_days": 21,
         "citation_keys": ["6(a)(1)"],
@@ -59,13 +68,14 @@ class DeadlineService:
 
     def compute(self, case_id, user_id, trigger_event, trigger_date, rule_cited,
                 period_days, service_method=None, local_rule_text=None,
-                judge_practice_text=None) -> DeadlineComputation:
+                judge_practice_text=None, state_for_holidays=None) -> DeadlineComputation:
         """May raise MissingVariableError -- the caller (app.py) must catch
         it and display e.question rather than silently failing or guessing."""
         computation = self.engine.compute_forward_deadline(
             rule_cited=rule_cited, trigger_event=trigger_event, trigger_date=trigger_date,
             period_days=period_days, service_method=service_method,
             local_rule_text=local_rule_text, judge_practice_text=judge_practice_text,
+            state_for_holidays=state_for_holidays,
         )
         key = f"{case_id}:{trigger_event}:{rule_cited}"
         self.deadlines[key] = computation
