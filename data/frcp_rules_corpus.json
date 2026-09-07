@@ -4,7 +4,7 @@
     "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_6",
     "subsections": {
       "6(a)(1)": "When the period is stated in days or a longer unit of time: (A) exclude the day of the event that triggers the period; (B) count every day, including intermediate Saturdays, Sundays, and legal holidays; and (C) include the last day of the period, but if the last day is a Saturday, Sunday, or legal holiday, the period continues to run until the end of the next day that is not a Saturday, Sunday, or legal holiday.",
-      "6(a)(6)": "\u201cLegal holiday\u201d means: (A) the day set aside by statute for observing New Year's Day, Martin Luther King Jr.'s Birthday, Washington's Birthday, Memorial Day, Juneteenth National Independence Day, Independence Day, Labor Day, Columbus Day, Veterans\u2019 Day, Thanksgiving Day, or Christmas Day; (B) any day declared a holiday by the President or Congress; and (C) for periods that are measured after an event, any other day declared a holiday by the state where the district court is located.",
+      "6(a)(6)": "Legal holiday means: (A) the day set aside by statute for observing New Year's Day, Martin Luther King Jr.'s Birthday, Washington's Birthday, Memorial Day, Juneteenth National Independence Day, Independence Day, Labor Day, Columbus Day, Veterans' Day, Thanksgiving Day, or Christmas Day; (B) any day declared a holiday by the President or Congress; and (C) for periods that are measured after an event, any other day declared a holiday by the state where the district court is located.",
       "6(d)": "When a party may or must act within a specified time after being served and service is made under Rule 5(b)(2)(C) (mail), (D) (leaving with the clerk), or (F) (other means consented to), 3 days are added after the period would otherwise expire under Rule 6(a)."
     }
   },
@@ -24,6 +24,28 @@
       "26(a)(1)(A)": "Except as exempted by Rule 26(a)(1)(B) or as otherwise stipulated or ordered by the court, a party must, without awaiting a discovery request, provide to the other parties initial disclosures of witnesses, documents, damages computation, and insurance agreements.",
       "26(a)(1)(C)": "A party must make the initial disclosures at or within 14 days after the parties' Rule 26(f) conference unless a different time is set by stipulation or court order, or unless a party objects during the conference that initial disclosures are not appropriate in this action and states the objection in the Rule 26(f) discovery plan.",
       "26(d)(1)": "A party may not seek discovery from any source before the parties have conferred as required by Rule 26(f), except in a proceeding exempted from initial disclosure under Rule 26(a)(1)(B), or when authorized by these rules, by stipulation, or by court order."
+    }
+  },
+  "33": {
+    "title": "Rule 33. Interrogatories to Parties",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_33",
+    "subsections": {
+      "33(a)(1)": "Unless otherwise stipulated or ordered by the court, a party may serve on any other party no more than 25 written interrogatories, including all discrete subparts. Leave to serve additional interrogatories may be granted to the extent consistent with Rule 26(b)(1) and (2).",
+      "33(b)(2)": "The responding party must serve its answers and any objections within 30 days after being served with the interrogatories. A shorter or longer time may be stipulated to under Rule 29 or be ordered by the court."
+    }
+  },
+  "34": {
+    "title": "Rule 34. Producing Documents, Electronically Stored Information, and Tangible Things, or Entering onto Land",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_34",
+    "subsections": {
+      "34(b)(2)(A)": "The party to whom the request is directed must respond in writing within 30 days after being served or, if the request was delivered under Rule 26(d)(2), within 30 days after the parties' first Rule 26(f) conference. A shorter or longer time may be stipulated to under Rule 29 or be ordered by the court."
+    }
+  },
+  "36": {
+    "title": "Rule 36. Requests for Admission",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_36",
+    "subsections": {
+      "36(a)(3)": "A matter is admitted unless, within 30 days after being served, the party to whom the request is directed serves on the requesting party a written answer or objection addressed to the matter and signed by the party or its attorney. A shorter or longer time for responding may be stipulated to under Rule 29 or be ordered by the court."
     }
   }
 }
