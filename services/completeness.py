@@ -7,23 +7,45 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
+import re
 import uuid
 
 COMPLETENESS_CHECKS = [
-    {"check": "Page continuity", "looks_for": "Missing or out-of-sequence page numbers",
-     "if_flagged": "Amber flag; user must confirm pages are absent or upload missing pages"},
+    {"check": "Page continuity", "looks_for": "No pages detected, or embedded 'Page X of Y' markers "
+     "that skip, repeat, or disagree on the total page count",
+     "if_flagged": "Red flag if no pages detected; amber flag if page markers are out of sequence"},
     {"check": "Legibility", "looks_for": "Blurred or low-contrast text OCR cannot confidently read",
      "if_flagged": "Amber flag on affected page; text excluded from proposed facts"},
     {"check": "Referenced exhibits", "looks_for": "Text referencing 'Exhibit A' etc. not present in the upload",
      "if_flagged": "Red flag; document incomplete until exhibit is uploaded or confirmed absent"},
     {"check": "Signature / certification page", "looks_for": "Missing signature on a document type that requires one",
      "if_flagged": "Amber flag; user asked to confirm whether a signed version exists"},
-    {"check": "Date consistency within document", "looks_for": "Internal dates that conflict",
-     "if_flagged": "Red flag; treated as a contradiction requiring resolution"},
+    {"check": "Multiple dates detected", "looks_for": "More than one distinct calendar date appearing in the "
+     "document text",
+     "if_flagged": "Informational flag listing the dates found; FORGE does not determine whether they conflict, "
+     "since that can require reading context FORGE cannot verify -- the user is asked to confirm consistency"},
     {"check": "Duplicate detection", "looks_for": "A file matching an already-uploaded document",
      "if_flagged": "Informational flag; user chooses to keep both, replace, or discard"},
-    {"check": "Redaction consistency", "looks_for": "Redacted blocks obscuring a relied-upon field",
-     "if_flagged": "Amber flag; redacted fields excluded from proposed facts"},
+    {"check": "Redaction markers", "looks_for": "Bracketed or blacked-out redaction markers in the extracted text",
+     "if_flagged": "Amber flag; user asked to confirm no relied-upon field is hidden by the redaction"},
+]
+
+_DATE_PATTERNS = [
+    re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
+    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
+    re.compile(
+        r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+        r"\s+\d{1,2},?\s+\d{4}\b", re.IGNORECASE
+    ),
+]
+
+_PAGE_MARKER_PATTERN = re.compile(r"\bpage\s+(\d+)\s+of\s+(\d+)\b", re.IGNORECASE)
+
+_REDACTION_PATTERNS = [
+    re.compile(r"\[\s*redacted\s*\]", re.IGNORECASE),
+    re.compile(r"\bredacted\b", re.IGNORECASE),
+    re.compile(r"[\u2588\u25A0]{3,}"),
+    re.compile(r"X{6,}"),
 ]
 
 
@@ -41,11 +63,45 @@ class CompletenessFlag:
     resolved_at: Optional[str] = None
 
 
+def _extract_distinct_dates(text: str) -> List[str]:
+    found = []
+    for pattern in _DATE_PATTERNS:
+        found.extend(pattern.findall(text))
+    seen = []
+    for d in found:
+        if d not in seen:
+            seen.append(d)
+    return seen
+
+
+def _check_page_sequence(text: str) -> Optional[str]:
+    """Purely mechanical: looks for embedded 'Page X of Y' markers (common in
+    PDF-extracted text) and checks whether X values are a clean 1..Y run
+    with a single agreed-upon Y. Returns a detail string if inconsistent,
+    else None. This does NOT catch every out-of-sequence scenario -- FORGE
+    only has a single extracted_text blob per document, not per-page text,
+    so this is a best-effort mechanical scan, not a guarantee."""
+    matches = _PAGE_MARKER_PATTERN.findall(text)
+    if not matches:
+        return None
+    page_nums = [int(a) for a, b in matches]
+    totals = {int(b) for a, b in matches}
+    if len(totals) > 1:
+        return f"The document states more than one total page count ({sorted(totals)}); this is inconsistent."
+    total = totals.pop()
+    expected = list(range(1, total + 1))
+    if sorted(set(page_nums)) != expected or len(page_nums) != len(set(page_nums)):
+        return (f"Page markers found ({sorted(page_nums)}) do not form a complete, "
+                f"non-repeating sequence from 1 to {total}.")
+    return None
+
+
 def run_completeness_check(document_category: str, page_count, extracted_text: str,
                             ocr_confidence, existing_document_hashes: Optional[List[str]] = None,
                             this_hash: Optional[str] = None) -> List[CompletenessFlag]:
     flags: List[CompletenessFlag] = []
-    text_lower = (extracted_text or "").lower()
+    text = extracted_text or ""
+    text_lower = text.lower()
 
     exhibit_markers = ["exhibit a", "exhibit b", "exhibit 1", "exhibit 2", "attachment 1", "see exhibit"]
     if any(marker in text_lower for marker in exhibit_markers):
@@ -56,6 +112,7 @@ def run_completeness_check(document_category: str, page_count, extracted_text: s
 
     requires_signature = document_category in (
         "Complaint, petition, answer, or other court filing", "Summons or service document",
+        "Court order, notice, or scheduling order", "Criminal docket, judgment, or disposition",
     )
     if requires_signature and "signature" not in text_lower and "/s/" not in text_lower:
         flags.append(CompletenessFlag(
@@ -80,6 +137,33 @@ def run_completeness_check(document_category: str, page_count, extracted_text: s
         flags.append(CompletenessFlag(
             check_name="Page continuity", severity="red",
             detail="No pages could be detected in this document.",
+        ))
+    else:
+        page_issue = _check_page_sequence(text)
+        if page_issue:
+            flags.append(CompletenessFlag(
+                check_name="Page continuity", severity="amber",
+                detail=page_issue,
+            ))
+
+    distinct_dates = _extract_distinct_dates(text)
+    if len(distinct_dates) > 1:
+        flags.append(CompletenessFlag(
+            check_name="Multiple dates detected", severity="info",
+            detail=(
+                f"This document contains {len(distinct_dates)} distinct dates: "
+                f"{', '.join(distinct_dates)}. FORGE does not determine whether these are "
+                f"consistent with each other -- please confirm they match what you expect "
+                f"(e.g., an incident date vs. a filing date) rather than a conflict."
+            ),
+        ))
+
+    if any(p.search(text) for p in _REDACTION_PATTERNS):
+        flags.append(CompletenessFlag(
+            check_name="Redaction markers", severity="amber",
+            detail="This document appears to contain redacted or blacked-out sections. If a redaction "
+                    "covers information FORGE would otherwise treat as a fact, upload an unredacted "
+                    "version or confirm the redaction is expected.",
         ))
 
     return flags
