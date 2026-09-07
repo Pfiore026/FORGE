@@ -19,7 +19,7 @@ from services.corroboration import STRENGTH_LABELS
 from services.completeness import SECOND_LOOK_WARNING
 from services.deadline_service import DeadlineService, KNOWN_TRIGGERS
 from services.deadline_engine import MissingVariableError
-from services.ui_theme import inject_theme, render_hero, render_stepper, render_chip
+from services.ui_theme import inject_theme, render_hero, render_stepper, render_chip, render_severity_badge
 
 st.set_page_config(page_title="FORGE - Your Path to Justice", page_icon="scales", layout="centered")
 inject_theme()
@@ -415,8 +415,8 @@ def step_4():
                 if not flags:
                     st.success("No completeness issues detected. You may still confirm below after your own review.")
                 for flag in flags:
-                    icon = {"red": "[!]", "amber": "[?]", "info": "[i]"}[flag.severity]
-                    st.markdown(f"{icon} {flag.check_name} - {flag.detail}  \n"
+                    render_severity_badge(flag.severity.upper(), flag.severity)
+                    st.markdown(f"**{flag.check_name}** - {flag.detail}  \n"
                                  f"Status: {flag.resolution_status}")
                     if flag.resolution_status == "unresolved":
                         c1, c2 = st.columns(2)
@@ -525,10 +525,9 @@ def step_5():
             "how you want to proceed."
         )
         for flag in unresolved_contradictions:
-            severity_icon = {"high": "[!]", "medium": "[?]", "low": "[i]"}[flag.severity]
             with st.container(border=True):
-                st.markdown(f"{severity_icon} {flag.contradiction_type.replace('_', ' ').title()} "
-                             f"({flag.severity} severity)  \n{flag.detail}")
+                render_severity_badge(flag.severity.upper(), flag.severity)
+                st.markdown(f"**{flag.contradiction_type.replace('_', ' ').title()}**  \n{flag.detail}")
                 note = st.text_input("Add a note explaining how you resolved or are treating this",
                                        key=f"contra_note_{flag.id}")
                 c1, c2 = st.columns(2)
@@ -561,9 +560,9 @@ def step_5():
         st.caption("Nothing below is treated as confirmed until you act on it. Strength reflects "
                     "how many independent sources support each fact - not its legal significance.")
         for fc in facts:
-            tier_icon = {"strong": "[+]", "moderate": "[~]", "weak": "[-]"}[fc.strength_tier]
             with st.container(border=True):
-                st.markdown(f"{tier_icon} {fc.normalized_statement}  \n"
+                render_severity_badge(fc.strength_tier.upper(), fc.strength_tier)
+                st.markdown(f"**{fc.normalized_statement}**  \n"
                              f"{STRENGTH_LABELS[fc.strength_tier]} - status: {fc.status}")
                 for src in fc.sources:
                     st.caption(f"Source quote: {src.source_quote} (page {src.source_page}), "
