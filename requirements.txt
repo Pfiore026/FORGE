@@ -1,9 +1,19 @@
 streamlit>=1.38.0
 python-dateutil>=2.9.0
+pypdf>=4.3.0                # PDF text extraction (services/document_pipeline.py)
+python-docx>=1.1.2          # DOCX text extraction (services/document_pipeline.py)
 
 # Wire in for production (uncomment as you connect real services):
 # supabase>=2.6.0            # Postgres + Auth + Storage backend
-# pytesseract>=0.3.13        # OCR for image-based documents
-# pdfplumber>=0.11.4         # PDF text extraction
-# python-docx>=1.1.2         # DOCX text extraction
+# pytesseract>=0.3.13        # OCR for image-based documents -- ALSO requires the
+#                            # system-level Tesseract binary (not a pip package),
+#                            # so this will not work on Streamlit Cloud without a
+#                            # packages.txt entry, or on any host without it
+#                            # separately installed. services/document_pipeline.py
+#                            # currently returns an honest "extraction unavailable"
+#                            # flag for images rather than assuming this is present.
+# pdfplumber>=0.11.4         # Alternative/higher-fidelity PDF extraction if pypdf's
+#                            # text quality proves insufficient on real filings --
+#                            # not currently used; pypdf above is what is wired in
+#                            # and tested in services/document_pipeline.py.
 # cryptography>=43.0.0       # Field-level encryption helpers
