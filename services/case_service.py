@@ -161,6 +161,14 @@ class DocumentService:
     def for_case(self, case_id: str) -> List[CaseDocument]:
         return [d for d in self.documents.values() if d.case_id == case_id]
 
+    def category_lookup(self, case_id: str) -> Dict[str, str]:
+        """Returns {document_id: document_category} for every document in
+        this case. Used to give ContradictionService the category context
+        it needs to apply heightened, cross-document scrutiny to sworn
+        statements and police/incident reports (see services/contradiction.py
+        HIGH_SCRUTINY_CATEGORIES) while staying conservative everywhere else."""
+        return {d.id: d.document_category for d in self.for_case(case_id)}
+
 
 class FactCardService:
     def __init__(self, audit: AuditService):
@@ -213,8 +221,8 @@ class FactCardService:
     def scan_decay(self, case_id: str) -> List[FactCard]:
         return scan_case_for_decay(self.for_case(case_id))
 
-    def scan_contradictions(self, case_id: str) -> List[ContradictionFlag]:
-        return scan_case_for_contradictions(self.for_case(case_id))
+    def scan_contradictions(self, case_id: str, document_categories: Optional[Dict[str, str]] = None) -> List[ContradictionFlag]:
+        return scan_case_for_contradictions(self.for_case(case_id), document_categories=document_categories)
 
     def for_case(self, case_id: str) -> List[FactCard]:
         return [f for f in self.facts.values() if f.case_id == case_id]
