@@ -618,19 +618,60 @@ def render_workspace():
         "Proactive Clarification rule in FORGE's master prompt."
     )
 
+    exact_events = [ev for ev in events if ev.date_precision == "exact" and ev.event_date]
+    event_date_lookup = {}
+    for ev in exact_events:
+        try:
+            parsed = datetime.date.fromisoformat(ev.event_date)
+        except (ValueError, TypeError):
+            continue
+        label = f"{ev.event_date} - {ev.title}"
+        event_date_lookup[label] = parsed
+
     with st.form("add_deadline_form"):
         trigger_label = st.selectbox(
             "What triggering event do you want to calculate a deadline for?",
             list(KNOWN_TRIGGERS.keys()), key="deadline_trigger_select",
         )
-        trigger_date_input = st.date_input(
-            "Date of this triggering event", value=None, max_value=datetime.date.today(),
-            key="deadline_trigger_date",
-        )
+
+        prefill_choice = "Enter the date manually"
+        if event_date_lookup:
+            prefill_choice = st.selectbox(
+                "Use a date already in your timeline, or enter one manually",
+                ["Enter the date manually"] + list(event_date_lookup.keys()),
+                key="deadline_prefill_select",
+            )
+
+        if prefill_choice != "Enter the date manually" and prefill_choice in event_date_lookup:
+            trigger_date_input = event_date_lookup[prefill_choice]
+            st.caption(f"Using date from your timeline: {trigger_date_input.isoformat()}")
+        else:
+            trigger_date_input = st.date_input(
+                "Date of this triggering event", value=None, max_value=datetime.date.today(),
+                key="deadline_trigger_date",
+            )
+
         service_method = st.selectbox(
             "How was this served (if applicable)?",
             ["not_applicable", "personal", "mail", "electronic"], key="deadline_service_method",
         )
+
+        with st.expander("Local Rule or Judge's Practice modifier (optional)"):
+            st.caption(
+                "Per FORGE's Rule Hierarchy, a Local Rule or a Judge's standing order can "
+                "modify the standard FRCP deadline. FORGE will only apply a modifier if you "
+                "paste its exact text below -- it will never infer or assume one."
+            )
+            local_rule_text = st.text_area(
+                "Paste the exact Local Rule text that modifies this deadline, if any",
+                key="deadline_local_rule_text",
+            )
+            judge_practice_text = st.text_area(
+                "Paste the exact Judge's Practice / standing order text that modifies this "
+                "deadline, if any",
+                key="deadline_judge_practice_text",
+            )
+
         submitted = st.form_submit_button("Calculate deadline")
 
     if submitted:
@@ -640,8 +681,16 @@ def render_workspace():
                 case_id, user_id, trigger_event=trigger_label, trigger_date=trigger_date_input,
                 rule_cited=preset["rule_cited"], period_days=preset["period_days"],
                 service_method=None if service_method == "not_applicable" else service_method,
+                local_rule_text=local_rule_text or None,
+                judge_practice_text=judge_practice_text or None,
             )
             st.success(f"Deadline computed: {comp.resulting_deadline.isoformat()}")
+            if local_rule_text or judge_practice_text:
+                st.warning(
+                    "A Local Rule or Judge's Practice modifier was recorded with this "
+                    "computation. FORGE quotes it verbatim in the computation steps below "
+                    "but does not independently verify it matches your court's actual order."
+                )
         except MissingVariableError as e:
             st.error(e.question)
 
@@ -659,6 +708,10 @@ def render_workspace():
                     st.write(deadline_service.cite(key))
                 if d.added_days_rule_6d:
                     st.write(deadline_service.cite("6(d)"))
+                if d.local_rule_modifier:
+                    st.write(f"Local Rule modifier (as pasted): \"{d.local_rule_modifier}\"")
+                if d.judge_practice_modifier:
+                    st.write(f"Judge's Practice modifier (as pasted): \"{d.judge_practice_modifier}\"")
     else:
         st.caption("No deadlines calculated yet.")
 
