@@ -1,1 +1,29 @@
-JSON_CONTENT_CORPUS
+{
+  "6": {
+    "title": "Rule 6. Computing and Extending Time; Time for Motion Papers",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_6",
+    "subsections": {
+      "6(a)(1)": "When the period is stated in days or a longer unit of time: (A) exclude the day of the event that triggers the period; (B) count every day, including intermediate Saturdays, Sundays, and legal holidays; and (C) include the last day of the period, but if the last day is a Saturday, Sunday, or legal holiday, the period continues to run until the end of the next day that is not a Saturday, Sunday, or legal holiday.",
+      "6(a)(6)": "\u201cLegal holiday\u201d means: (A) the day set aside by statute for observing New Year's Day, Martin Luther King Jr.'s Birthday, Washington's Birthday, Memorial Day, Juneteenth National Independence Day, Independence Day, Labor Day, Columbus Day, Veterans\u2019 Day, Thanksgiving Day, or Christmas Day; (B) any day declared a holiday by the President or Congress; and (C) for periods that are measured after an event, any other day declared a holiday by the state where the district court is located.",
+      "6(d)": "When a party may or must act within a specified time after being served and service is made under Rule 5(b)(2)(C) (mail), (D) (leaving with the clerk), or (F) (other means consented to), 3 days are added after the period would otherwise expire under Rule 6(a)."
+    }
+  },
+  "12": {
+    "title": "Rule 12. Defenses and Objections: When and How Presented",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_12",
+    "subsections": {
+      "12(a)(1)(A)(i)": "A defendant must serve an answer within 21 days after being served with the summons and complaint.",
+      "12(a)(1)(A)(ii)": "A defendant must serve an answer within 60 days after service was waived under Rule 4(d), if the defendant was addressed in the United States.",
+      "12(a)(4)": "Unless the court sets a different time, serving a motion under this rule alters these periods as follows: (A) if the court denies the motion or postpones its disposition until trial, the responsive pleading must be served within 14 days after notice of the court's action; or (B) if the court grants a motion for a more definite statement, the responsive pleading must be served within 14 days after the more definite statement is served."
+    }
+  },
+  "26": {
+    "title": "Rule 26. Duty to Disclose; General Provisions Governing Discovery",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_26",
+    "subsections": {
+      "26(a)(1)(A)": "Except as exempted by Rule 26(a)(1)(B) or as otherwise stipulated or ordered by the court, a party must, without awaiting a discovery request, provide to the other parties initial disclosures of witnesses, documents, damages computation, and insurance agreements.",
+      "26(a)(1)(C)": "A party must make the initial disclosures at or within 14 days after the parties' Rule 26(f) conference unless a different time is set by stipulation or court order, or unless a party objects during the conference that initial disclosures are not appropriate in this action and states the objection in the Rule 26(f) discovery plan.",
+      "26(d)(1)": "A party may not seek discovery from any source before the parties have conferred as required by Rule 26(f), except in a proceeding exempted from initial disclosure under Rule 26(a)(1)(B), or when authorized by these rules, by stipulation, or by court order."
+    }
+  }
+}
