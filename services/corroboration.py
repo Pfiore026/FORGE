@@ -13,14 +13,23 @@ from datetime import datetime, timedelta
 from typing import List
 from .models import FactCard, FactSource
 
-DEFAULT_DECAY_WINDOW_DAYS = 60
+# NOTE: The canonical default decay window lives on FactCard.decay_window_days
+# in services/models.py (default=60). This module previously declared its own
+# DEFAULT_DECAY_WINDOW_DAYS = 60 constant that was never referenced anywhere
+# -- two sources of truth for the same number that could silently drift out
+# of sync if one were changed without the other. Removed; models.py is the
+# single source of truth for this default.
 
 STRENGTH_LABELS = {
-    "strong": "Strong — corroborated by 2+ independent sources",
-    "moderate": "Moderate — supported by a single source",
-    "weak": "Weak — low-confidence or unverified extraction",
+    "strong": "Strong -- corroborated by 2+ independent sources",
+    "moderate": "Moderate -- supported by a single source",
+    "weak": "Weak -- low-confidence or unverified extraction",
 }
 
+# Maps directly to the --forge-green/--forge-amber/--forge-red CSS variables
+# in services/ui_theme.py, so fact-strength badges use the same color
+# language as every other severity indicator in the app (completeness flags,
+# contradiction flags). Use with ui_theme.render_severity_badge().
 STRENGTH_COLOR = {"strong": "green", "moderate": "amber", "weak": "red"}
 
 
