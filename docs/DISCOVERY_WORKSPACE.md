@@ -1,55 +1,66 @@
-# FORGE Discovery Workspace
+# FORGE Discovery Workspace -- Interrogatories & Depositions
 
-## Purpose
+## Integration approach
 
-The Discovery Workspace is FORGE's evidence-first organization and procedural-education layer for federal civil discovery. It is available after initial filing so users can learn how the civil case stages connect, collect source records, and prepare organized discovery topics before discovery is open. It does not provide legal advice, predict outcomes, determine what a user should serve, or assess legal strength.
+This workspace ships as a Streamlit multipage module (`pages/6_Discovery_Workspace.py`)
+rather than as edits to `app.py`. Streamlit automatically adds files under `pages/`
+to the sidebar navigation, so this integrates into the live product without risking
+the existing Forge Path intake or Case Workspace. It reuses the same session-state
+services `app.py` already creates (`AuditService`, `CaseService`, `FactCardService`),
+so Fact Cards confirmed during the Forge Path and Case Workspace are visible here.
 
-## Evidence Intelligence Standard
+## New services
 
-1. The immutable original upload is the source record.
-2. Every original is stored with a SHA-256 hash, source classification, upload timestamp, version identifier, and immutable storage-object identifier.
-3. Native PDF text is preferred when available. Image-only or unusable pages are routed to high-quality rendered-page OCR.
-4. OCR, classifications, extracted fields, summaries, timelines, and workspace records are derived records; they are never substituted for the original.
-5. Every material extracted value requires a document ID, document-version ID, page number, normalized bounding box, verbatim source text, extraction method, confidence values, and review state.
-6. Conflicting records are preserved and displayed together. FORGE must not choose a controlling value without user review.
-7. Low-confidence, handwritten, incomplete, unsupported, or high-risk values enter a review queue.
+- `services/discovery_rules.py` -- a strict-citation rule library. FORGE only quotes
+  rule text that has been fetched and verified, with its source URL and verification
+  date. If a rule has not been verified, FORGE says so instead of guessing. Two
+  entries currently carry verified excerpts (FRCP 33(a)(1) and FRCP 26(d)(1)); the
+  rest are marked `not_yet_verified` pending a source fetch.
+- `services/interrogatory_service.py` -- `InterrogatoryService` organizes source-cited
+  factual topics for written interrogatories. It raises `MissingDiscoveryVariableError`
+  (mirroring `deadline_engine.MissingVariableError`) instead of guessing a missing
+  target party, factual topic, or source link.
+- `services/deposition_service.py` -- `DepositionTopicService` organizes source-cited
+  people, documents, and events into deposition-preparation topics, and links back to
+  interrogatory topics.
 
-## Authority hierarchy
+## What the workspace does
 
-FORGE must present procedural sources in this sequence:
+- Learn / Refresher tab: a persistent, always-available briefing on what interrogatories
+  are, when they are used, what they can help organize, why focused questions matter,
+  their limits, and the not-legal-advice boundary. It also shows how every discovery
+  stage and tool connects (pleading, Rule 26(f), written discovery, admissions,
+  depositions, motion practice, trial).
+- Interrogatory Planner: lets the user link a plain-language factual topic to one or
+  more confirmed Fact Cards, tracks the discrete-subpart count per target party against
+  the Rule 33(a)(1) default 25-item limit, and lets the user link a topic to a
+  deposition-preparation topic.
+- Deposition Topics: lets the user create a preparation topic tied to confirmed Fact
+  Cards and link it back to an interrogatory topic.
+- Preflight Checklist: a non-binding checklist (discovery-open confirmation, local-rule
+  and scheduling-order review, target-party confirmation, subpart-count review, and a
+  not-legal-advice acknowledgment) that the user must work through before treating any
+  planner topic as ready to take outside FORGE.
 
-1. Federal Rules of Civil Procedure.
-2. Current District of Maine Local Rules.
-3. Assigned judge's practices and case-management orders.
-4. Operative scheduling order and docket-specific directives.
+## What the workspace intentionally does not do
 
-No deadline calculation, discovery-availability statement, or finalization pathway may treat a rule as current unless the source version, effective date, source URL, and verification date are attached.
+- It never drafts interrogatory or deposition question language.
+- It never evaluates legal strength, claim viability, or witness credibility.
+- It never tells the user what to serve, when to serve it, or how to use an answer.
+- It never treats an extracted or confirmed fact as legal proof.
+- It never finalizes or transmits a discovery request; "finalized_outside_forge" is a
+  status label only.
 
-## Discovery learning map
+## Known follow-up work
 
-The permanent, user-accessible refresher explains: pleading and service; Rule 26 conference and disclosures; discovery timing; interrogatories; document requests; requests for admission; depositions; discovery responses; motion practice; pretrial preparation; and trial. The system shows each tool's mechanics and connections but does not recommend substantive legal choices.
-
-## Interrogatories and depositions
-
-Interrogatories organize written party responses around source-cited factual topics. Depositions organize people, events, and records into source-cited preparation topics. A response identifying a person, date, policy, document, event, or communication may be linked to the Fact Bank, evidence timeline, document-reference record, and a neutral deposition topic.
-
-The tool may state: "This response identifies a person with information. It is available for your witness and deposition-preparation records." It may not state that the user should ask a question, serve a request, use information against a party, or rely on any record as proof.
-
-## Preflight controls
-
-Before a user marks an interrogatory set finalized, FORGE requires the following recorded confirmations:
-
-- Court and case verified
-- Federal rule source attached
-- Local rule source attached
-- Scheduling order source attached
-- Judge-practices source attached when applicable
-- Discovery status confirmed
-- Target confirmed as a party
-- Interrogatory count and discrete-subpart count reviewed
-- Every topic linked to source records
-- User acknowledges that FORGE provides education and organization, not legal advice
-
-## Implementation status
-
-The `discovery` package contains the initial domain layer: immutable document records, citations, extraction fields, fact assertions, rule sources, review tasks, neutral interrogatory/deposition topics, inspection routing, validation, conflict detection, and a source graph. Provider-specific OCR calls and user-interface components should be implemented as adapters around this layer.
+- `InterrogatoryService` and `DepositionTopicService` currently store topics in memory
+  per Streamlit session. They should be migrated to the same persistence layer as
+  `services/db.py` so topics survive across sessions like Fact Cards and documents do.
+- Most entries in `services/discovery_rules.py` are placeholders pending a verified
+  fetch of the exact rule text (FRCP 30(d)(1), 34, 36, and the District of Maine Local
+  Rules). Do not present these as reliable until verified text is loaded.
+- The `discovery/` package added in an earlier commit on this branch used an
+  incompatible parallel data model (`DocumentRecord`, `FactAssertion`, etc.) and is
+  superseded by this integration, which instead extends `FactCardService`,
+  `DocumentService`, and the existing audit/citation patterns. See
+  `docs/DEPRECATED_discovery_package.md`.
