@@ -1,4 +1,14 @@
 {
+  "4": {
+    "title": "Rule 4. Summons",
+    "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_4",
+    "subsections": {
+      "4(l)(1)": "Unless service is waived, proof of service must be made to the court. Except for service by a United States marshal or deputy marshal, proof must be by the server's affidavit.",
+      "4(l)(3)": "Failure to prove service does not affect the validity of service. The court may permit proof of service to be amended.",
+      "4(d)(4)": "When the plaintiff files a waiver, proof of service is not required and these rules apply as if a summons and complaint had been served at the time of filing the waiver.",
+      "4(m)": "If a defendant is not served within 90 days after the complaint is filed, the court -- on motion or on its own after notice to the plaintiff -- must dismiss the action without prejudice against that defendant or order that service be made within a specified time. But if the plaintiff shows good cause for the failure, the court must extend the time for service for an appropriate period."
+    }
+  },
   "6": {
     "title": "Rule 6. Computing and Extending Time; Time for Motion Papers",
     "source": "Cornell LII, law.cornell.edu/rules/frcp/rule_6",
