@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FORGE: Run (Streamlit)",
+      "type": "shell",
+      "command": "streamlit run app.py",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "FORGE: Install requirements",
+      "type": "shell",
+      "command": "pip install -r requirements.txt",
+      "problemMatcher": []
+    },
+    {
+      "label": "FORGE: Run tests",
+      "type": "shell",
+      "command": "pytest tests -v",
+      "problemMatcher": []
+    }
+  ]
+}

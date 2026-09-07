@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    "ms-python.pylint",
+    "eamodio.gitlens",
+    "tamasfe.even-better-toml",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg"
+  ]
+}
