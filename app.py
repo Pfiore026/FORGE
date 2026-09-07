@@ -2,7 +2,8 @@
 FORGE -- Main Application Entry Point
 The Forge Path: a five-step guided intake plus the Document Intelligence
 Engine's full safeguard stack (completeness check, corroboration, decay,
-contradiction detection).
+contradiction detection), followed by a persistent Case Workspace with
+FRCP Rule 6 deadline computation and strict-citation rule lookups.
 
 Run with: streamlit run app.py
 """
@@ -16,8 +17,10 @@ from services.case_service import (
 from services.state_registry import US_STATES
 from services.corroboration import STRENGTH_LABELS
 from services.completeness import SECOND_LOOK_WARNING
+from services.deadline_service import DeadlineService, KNOWN_TRIGGERS
+from services.deadline_engine import MissingVariableError
 
-st.set_page_config(page_title="FORGE \u2014 Your Path to Justice", page_icon="\u2696\ufe0f", layout="centered")
+st.set_page_config(page_title="FORGE - Your Path to Justice", page_icon="scales", layout="centered")
 
 
 def init_services():
@@ -33,6 +36,8 @@ def init_services():
         st.session_state.contradiction_service = ContradictionService(st.session_state.audit)
     if "timeline_service" not in st.session_state:
         st.session_state.timeline_service = TimelineService(st.session_state.audit)
+    if "deadline_service" not in st.session_state:
+        st.session_state.deadline_service = DeadlineService(st.session_state.audit)
     if "user_id" not in st.session_state:
         st.session_state.user_id = "demo-user-0001"
     if "case_id" not in st.session_state:
@@ -49,6 +54,7 @@ document_service = st.session_state.document_service
 fact_service = st.session_state.fact_service
 contradiction_service = st.session_state.contradiction_service
 timeline_service = st.session_state.timeline_service
+deadline_service = st.session_state.deadline_service
 user_id = st.session_state.user_id
 case_id = st.session_state.case_id
 profile = case_service.get(case_id)
@@ -61,9 +67,9 @@ STEP_LABELS = {
 
 def render_progress():
     step = st.session_state.forge_step
-    st.markdown(f"### Step {step} of 5 \u2014 {STEP_LABELS[step]}")
+    st.markdown(f"### Step {step} of 5 - {STEP_LABELS[step]}")
     st.progress(step / 5)
-    st.caption(f"Foundation strength: {profile.completion_percent()}% \u2014 this reflects how much of your "
+    st.caption(f"Foundation strength: {profile.completion_percent()}% - this reflects how much of your "
                "record is organized, not how strong your case is.")
     st.divider()
 
@@ -116,7 +122,7 @@ def step_1():
 
     st.info(
         "FORGE is currently set up for federal civil cases in the "
-        "**United States District Court for the District of Maine**."
+        "United States District Court for the District of Maine."
     )
     court_confirmed = st.radio(
         "Is this the federal court connected to your matter?",
@@ -136,7 +142,7 @@ def step_1():
     st.divider()
     col1, col2 = st.columns(2)
     with col2:
-        if st.button("Continue \u2192", type="primary", use_container_width=True):
+        if st.button("Continue", type="primary", use_container_width=True):
             if filing_status is None or court_confirmed is None:
                 st.error("Please answer both questions above before continuing.")
             else:
@@ -152,7 +158,7 @@ def step_1():
                     incident_state=None if incident_state == "I am not sure yet" else incident_state,
                     state_source_jurisdiction=None if incident_state == "I am not sure yet" else incident_state,
                 )
-                st.success("**Foundation set.** FORGE now knows the starting court workspace "
+                st.success("Foundation set. FORGE now knows the starting court workspace "
                            "and the state sources that may be relevant for your records.")
                 go_to(2)
 
@@ -210,7 +216,7 @@ def step_2():
                 "How many additional arrests, detentions, or charges are connected to this matter?",
                 min_value=0, max_value=10, value=0, key="num_additional_arrests")
             for i in range(int(num_additional)):
-                st.markdown(f"**Additional event #{i+1}**")
+                st.markdown(f"Additional event #{i+1}")
                 st.text_input(f"Date (exact, approximate, or 'unknown') #{i+1}", key=f"add_date_{i}")
                 st.selectbox(f"Person involved #{i+1}", ["Me", "Another person", "Unknown"], key=f"add_person_{i}")
                 st.text_input(f"What happened #{i+1}", key=f"add_type_{i}")
@@ -220,10 +226,10 @@ def step_2():
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("\u2190 Back", use_container_width=True):
+        if st.button("Back", use_container_width=True):
             go_to(1)
     with col2:
-        if st.button("Continue \u2192", type="primary", use_container_width=True):
+        if st.button("Continue", type="primary", use_container_width=True):
             date_iso, date_precision_value = None, "unknown"
             if precision == "I know the exact date." and event_date:
                 date_iso, date_precision_value = event_date.isoformat(), "exact"
@@ -245,7 +251,7 @@ def step_2():
                     source_type="user_stated", description=narrative or "",
                 )
 
-            st.success("**Your first timeline point is in place.** FORGE has saved the beginning of "
+            st.success("Your first timeline point is in place. FORGE has saved the beginning of "
                        "your story. Later, you can connect documents and other records to confirm or add detail.")
             go_to(3)
 
@@ -293,16 +299,16 @@ def step_3():
             st.file_uploader("Upload a scheduling order, standing order, or judge-issued order (optional now)",
                               type=["pdf", "docx", "jpg", "png"], key="judge_order_upload_step3")
         else:
-            st.caption("That's fine \u2014 judge information is not required yet. FORGE will prompt you "
+            st.caption("That's fine - judge information is not required yet. FORGE will prompt you "
                        "again once your case shows an assignment.")
 
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("\u2190 Back", use_container_width=True, key="back3"):
+        if st.button("Back", use_container_width=True, key="back3"):
             go_to(2)
     with col2:
-        if st.button("Continue \u2192", type="primary", use_container_width=True, key="continue3"):
+        if st.button("Continue", type="primary", use_container_width=True, key="continue3"):
             related_map = {"No.": "none", "Yes, and it is still pending.": "pending", "I am not sure.": "unsure"}
             if related == "Yes, and it has ended.":
                 outcome_map = {
@@ -334,7 +340,7 @@ def step_3():
                 assigned_district_judge=district_judge or None, assigned_magistrate_judge=magistrate_judge or None,
                 judge_practices_status=judge_practices_status,
             )
-            st.success("**Your case position is mapped.** FORGE will now tailor the next workspace "
+            st.success("Your case position is mapped. FORGE will now tailor the next workspace "
                        "to the stage you selected. Judge-specific procedures can be added later.")
             go_to(4)
 
@@ -403,13 +409,13 @@ def step_4():
         for doc in docs:
             flags = document_service.get_flags(doc.id)
             with st.container(border=True):
-                st.markdown(f"**{doc.original_filename}** \u2014 status: `{doc.completeness_status}`")
+                st.markdown(f"{doc.original_filename} - status: {doc.completeness_status}")
                 if not flags:
                     st.success("No completeness issues detected. You may still confirm below after your own review.")
                 for flag in flags:
-                    icon = {"red": "\U0001F534", "amber": "\U0001F7E1", "info": "\u2139\ufe0f"}[flag.severity]
-                    st.markdown(f"{icon} **{flag.check_name}** \u2014 {flag.detail}  \n"
-                                 f"Status: `{flag.resolution_status}`")
+                    icon = {"red": "[!]", "amber": "[?]", "info": "[i]"}[flag.severity]
+                    st.markdown(f"{icon} {flag.check_name} - {flag.detail}  \n"
+                                 f"Status: {flag.resolution_status}")
                     if flag.resolution_status == "unresolved":
                         c1, c2 = st.columns(2)
                         with c1:
@@ -440,13 +446,13 @@ def step_4():
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("\u2190 Back", use_container_width=True, key="back4"):
+        if st.button("Back", use_container_width=True, key="back4"):
             go_to(3)
     with col2:
-        if st.button("Continue \u2192", type="primary", use_container_width=True, key="continue4"):
+        if st.button("Continue", type="primary", use_container_width=True, key="continue4"):
             if category:
                 case_service.update_fields(case_id, user_id, first_document_category=category)
-            st.success("**Your record is beginning.** FORGE will organize the document without "
+            st.success("Your record is beginning. FORGE will organize the document without "
                        "replacing your review. You remain in control of what is confirmed.")
             go_to(5)
 
@@ -465,14 +471,14 @@ def step_5():
     st.markdown("## Your Forge Path")
 
     with st.container(border=True):
-        st.markdown(f"**Court Workspace**  \n{profile.federal_court}")
-        st.markdown(f"**State Source Library**  \n{profile.state_source_jurisdiction or 'Not yet confirmed'}")
-        st.markdown(f"**Starting Event**  \n"
+        st.markdown(f"Court Workspace: {profile.federal_court}")
+        st.markdown(f"State Source Library: {profile.state_source_jurisdiction or 'Not yet confirmed'}")
+        st.markdown(f"Starting Event: "
                      f"{profile.primary_event_date or 'Date not yet provided'} "
-                     f"({profile.primary_event_date_precision}) \u2014 "
+                     f"({profile.primary_event_date_precision}) - "
                      f"{', '.join(profile.event_types) if profile.event_types else 'Type not yet specified'}")
-        st.markdown(f"**Current Position**  \n{profile.filing_status or 'Not yet specified'}")
-        st.markdown(f"**Record Status**  \n{len(docs)} document(s) uploaded, "
+        st.markdown(f"Current Position: {profile.filing_status or 'Not yet specified'}")
+        st.markdown(f"Record Status: {len(docs)} document(s) uploaded, "
                      f"{len(facts)} proposed fact(s) awaiting your review")
 
         next_step = "Upload your first document"
@@ -488,7 +494,7 @@ def step_5():
             next_step = "Add your federal case number when you locate it"
         elif profile.primary_event_date_precision == "unknown":
             next_step = "Confirm the earliest event date when you are able"
-        st.markdown(f"**Next Foundation Step**  \n{next_step}")
+        st.markdown(f"Next Foundation Step: {next_step}")
 
     confirmed = st.checkbox("I have reviewed this summary. It reflects what I know today.",
                              key="final_review_checkbox")
@@ -496,32 +502,30 @@ def step_5():
     st.divider()
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("\u2190 Edit My Answers", use_container_width=True):
+        if st.button("Edit My Answers", use_container_width=True):
             go_to(1)
     with col2:
         if st.button("Save and Finish Later", use_container_width=True):
             case_service.mark_intake_complete(case_id, user_id, confirmed=False)
-            st.info("Saved. You can return anytime \u2014 your progress is preserved.")
+            st.info("Saved. You can return anytime - your progress is preserved.")
     with col3:
         if st.button("Save and Enter My Case Workspace", type="primary", use_container_width=True,
                       disabled=not confirmed):
             case_service.mark_intake_complete(case_id, user_id, confirmed=True)
-            st.balloons()
-            st.success("**Your path is forged \u2014 not finished.** You have created a starting "
-                       "record for your matter. As you add documents and confirm facts, FORGE will "
-                       "help you build a clearer, source-linked case file.")
+            st.session_state.just_completed_intake = True
+            go_to(6)
 
     if unresolved_contradictions:
         st.divider()
-        st.markdown("### \u26a0\ufe0f Contradictions detected across your facts")
+        st.markdown("### Contradictions detected across your facts")
         st.caption(
             "FORGE never resolves a contradiction automatically. Review each one and tell FORGE "
             "how you want to proceed."
         )
         for flag in unresolved_contradictions:
-            severity_icon = {"high": "\U0001F534", "medium": "\U0001F7E1", "low": "\u2139\ufe0f"}[flag.severity]
+            severity_icon = {"high": "[!]", "medium": "[?]", "low": "[i]"}[flag.severity]
             with st.container(border=True):
-                st.markdown(f"{severity_icon} **{flag.contradiction_type.replace('_', ' ').title()}** "
+                st.markdown(f"{severity_icon} {flag.contradiction_type.replace('_', ' ').title()} "
                              f"({flag.severity} severity)  \n{flag.detail}")
                 note = st.text_input("Add a note explaining how you resolved or are treating this",
                                        key=f"contra_note_{flag.id}")
@@ -537,15 +541,15 @@ def step_5():
 
     if stale_facts:
         st.divider()
-        st.markdown("### \u23f3 Facts due for re-verification")
+        st.markdown("### Facts due for re-verification")
         st.caption(
             "These facts have not been checked in over 60 days. Case law, rules, and even "
-            "your own case posture can change \u2014 please confirm they are still accurate."
+            "your own case posture can change - please confirm they are still accurate."
         )
         for fc in stale_facts:
             with st.container(border=True):
-                st.markdown(f"**{fc.normalized_statement}**  \nLast verified: {fc.last_verified_at[:10]}")
-                if st.button("I have re-checked this \u2014 still accurate", key=f"reverify_{fc.id}"):
+                st.markdown(f"{fc.normalized_statement}  \nLast verified: {fc.last_verified_at[:10]}")
+                if st.button("I have re-checked this - still accurate", key=f"reverify_{fc.id}"):
                     fact_service.reverify(fc.id, user_id)
                     st.rerun()
 
@@ -553,14 +557,14 @@ def step_5():
         st.divider()
         st.markdown("### Proposed facts awaiting your review")
         st.caption("Nothing below is treated as confirmed until you act on it. Strength reflects "
-                    "how many independent sources support each fact \u2014 not its legal significance.")
+                    "how many independent sources support each fact - not its legal significance.")
         for fc in facts:
-            tier_icon = {"strong": "\U0001F7E2", "moderate": "\U0001F7E1", "weak": "\U0001F534"}[fc.strength_tier]
+            tier_icon = {"strong": "[+]", "moderate": "[~]", "weak": "[-]"}[fc.strength_tier]
             with st.container(border=True):
-                st.markdown(f"{tier_icon} **{fc.normalized_statement}**  \n"
-                             f"{STRENGTH_LABELS[fc.strength_tier]} \u2014 status: `{fc.status}`")
+                st.markdown(f"{tier_icon} {fc.normalized_statement}  \n"
+                             f"{STRENGTH_LABELS[fc.strength_tier]} - status: {fc.status}")
                 for src in fc.sources:
-                    st.caption(f"Source quote: \u201c{src.source_quote}\u201d (page {src.source_page}), "
+                    st.caption(f"Source quote: {src.source_quote} (page {src.source_page}), "
                                 f"confidence {src.confidence:.0%}")
                 c1, c2, c3 = st.columns(3)
                 with c1:
@@ -580,17 +584,105 @@ def step_5():
                         st.rerun()
 
 
-st.title("\u2696\ufe0f FORGE")
+def render_workspace():
+    """Post-intake Case Workspace. Renders the Case Timeline and the FRCP
+    Rule 6 Deadline Table (OUTPUT_FORMATS from the FORGE master prompt).
+    Never estimates a missing trigger date or service method -- surfaces
+    the MissingVariableError question instead."""
+    if st.session_state.pop("just_completed_intake", False):
+        st.balloons()
+        st.success("Your path is forged, not finished. You have created a starting "
+                   "record for your matter. As you add documents and confirm facts, FORGE will "
+                   "help you build a clearer, source-linked case file.")
+
+    st.markdown("## Your Case Workspace")
+    st.caption("Educated. Organized. Never Alone.")
+
+    events = timeline_service.for_case(case_id)
+
+    st.markdown("### Case Timeline")
+    if not events:
+        st.info("No timeline events yet. Add one from Step 2, or add a deadline-triggering "
+                 "event directly below.")
+    else:
+        for ev in events:
+            with st.container(border=True):
+                st.markdown(f"{ev.event_date or 'UNKNOWN DATE'} - {ev.title} ({ev.event_type})")
+                st.caption(f"Source: {ev.source_type} - {ev.description or 'No description provided.'}")
+
+    st.divider()
+    st.markdown("### Deadlines")
+    st.caption(
+        "FORGE computes deadlines mechanically from FRCP Rule 6. It will never estimate "
+        "a missing date or service method -- it will ask you for it instead, per the "
+        "Proactive Clarification rule in FORGE's master prompt."
+    )
+
+    with st.form("add_deadline_form"):
+        trigger_label = st.selectbox(
+            "What triggering event do you want to calculate a deadline for?",
+            list(KNOWN_TRIGGERS.keys()), key="deadline_trigger_select",
+        )
+        trigger_date_input = st.date_input(
+            "Date of this triggering event", value=None, max_value=datetime.date.today(),
+            key="deadline_trigger_date",
+        )
+        service_method = st.selectbox(
+            "How was this served (if applicable)?",
+            ["not_applicable", "personal", "mail", "electronic"], key="deadline_service_method",
+        )
+        submitted = st.form_submit_button("Calculate deadline")
+
+    if submitted:
+        preset = KNOWN_TRIGGERS[trigger_label]
+        try:
+            comp = deadline_service.compute(
+                case_id, user_id, trigger_event=trigger_label, trigger_date=trigger_date_input,
+                rule_cited=preset["rule_cited"], period_days=preset["period_days"],
+                service_method=None if service_method == "not_applicable" else service_method,
+            )
+            st.success(f"Deadline computed: {comp.resulting_deadline.isoformat()}")
+        except MissingVariableError as e:
+            st.error(e.question)
+
+    deadlines = deadline_service.for_case(case_id)
+    if deadlines:
+        st.markdown("#### Deadline Table")
+        st.table([d.as_table_row() for d in deadlines])
+
+        for d in deadlines:
+            with st.expander(f"Rule text relied on - {d.rule_cited}"):
+                preset = KNOWN_TRIGGERS.get(next(
+                    (k for k, v in KNOWN_TRIGGERS.items() if v["rule_cited"] == d.rule_cited), ""
+                ), {})
+                for key in preset.get("citation_keys", ["6(a)(1)"]):
+                    st.write(deadline_service.cite(key))
+                if d.added_days_rule_6d:
+                    st.write(deadline_service.cite("6(d)"))
+    else:
+        st.caption("No deadlines calculated yet.")
+
+    st.divider()
+    if st.button("Back to Review", use_container_width=True, key="workspace_back"):
+        go_to(5)
+
+
+st.title("FORGE")
 st.caption("Educated. Organized. Never Alone.")
 
 STEP_FUNCS = {1: step_1, 2: step_2, 3: step_3, 4: step_4, 5: step_5}
-STEP_FUNCS[st.session_state.forge_step]()
+if st.session_state.forge_step == 6:
+    render_workspace()
+else:
+    STEP_FUNCS[st.session_state.forge_step]()
 
 with st.sidebar:
     st.markdown("### Your Forge Path")
     for n, label in STEP_LABELS.items():
-        marker = "\u25CF" if n == st.session_state.forge_step else "\u25CB"
+        marker = "*" if n == st.session_state.forge_step else "o"
         st.markdown(f"{marker} {n}. {label}")
+    if st.session_state.forge_step == 6:
+        st.markdown("* Case Workspace")
     st.divider()
-    st.caption(f"Case ID: `{case_id[:8]}...`")
+    st.caption(f"Case ID: {case_id[:8]}...")
     st.caption("All actions are recorded in an audit log for your protection.")
