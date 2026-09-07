@@ -19,8 +19,10 @@ from services.corroboration import STRENGTH_LABELS
 from services.completeness import SECOND_LOOK_WARNING
 from services.deadline_service import DeadlineService, KNOWN_TRIGGERS
 from services.deadline_engine import MissingVariableError
+from services.ui_theme import inject_theme, render_hero, render_stepper, render_chip
 
 st.set_page_config(page_title="FORGE - Your Path to Justice", page_icon="scales", layout="centered")
+inject_theme()
 
 
 def init_services():
@@ -69,8 +71,8 @@ def render_progress():
     step = st.session_state.forge_step
     st.markdown(f"### Step {step} of 5 - {STEP_LABELS[step]}")
     st.progress(step / 5)
-    st.caption(f"Foundation strength: {profile.completion_percent()}% - this reflects how much of your "
-               "record is organized, not how strong your case is.")
+    render_chip("Foundation strength", f"{profile.completion_percent()}%")
+    st.caption("This reflects how much of your record is organized, not how strong your case is.")
     st.divider()
 
 
@@ -720,8 +722,7 @@ def render_workspace():
         go_to(5)
 
 
-st.title("FORGE")
-st.caption("Educated. Organized. Never Alone.")
+render_hero()
 
 STEP_FUNCS = {1: step_1, 2: step_2, 3: step_3, 4: step_4, 5: step_5}
 if st.session_state.forge_step == 6:
@@ -731,11 +732,13 @@ else:
 
 with st.sidebar:
     st.markdown("### Your Forge Path")
-    for n, label in STEP_LABELS.items():
-        marker = "*" if n == st.session_state.forge_step else "o"
-        st.markdown(f"{marker} {n}. {label}")
-    if st.session_state.forge_step == 6:
-        st.markdown("* Case Workspace")
+    is_workspace = st.session_state.forge_step == 6
+    render_stepper(
+        STEP_LABELS,
+        current_step=st.session_state.forge_step,
+        extra_step_label="Case Workspace",
+        extra_step_active=is_workspace,
+    )
     st.divider()
     st.caption(f"Case ID: {case_id[:8]}...")
     st.caption("All actions are recorded in an audit log for your protection.")
