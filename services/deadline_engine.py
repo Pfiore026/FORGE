@@ -74,8 +74,9 @@ def is_federal_legal_holiday(d: date) -> Optional[str]:
     """FRCP 6(a)(6)(A)-(B): fixed-date federal holidays plus the floating
     Monday holidays, including the 5 U.S.C. 6103 Saturday/Sunday observance
     shift that federal court clerks' offices actually follow. State holidays
-    under 6(a)(6)(C) are NOT included here; pass `extra_state_holidays` on
-    FRCPDeadlineEngine.compute_forward_deadline for those."""
+    under 6(a)(6)(C) are NOT included here; pass `state_for_holidays` or
+    `extra_state_holidays` on FRCPDeadlineEngine.compute_forward_deadline
+    for those."""
     key = (d.month, d.day)
     if key in US_FEDERAL_HOLIDAYS_FIXED:
         return US_FEDERAL_HOLIDAYS_FIXED[key]
@@ -96,6 +97,26 @@ def is_federal_legal_holiday(d: date) -> Optional[str]:
     if d == _nth_weekday_of_month(d.year, 11, 3, 4):
         return "Thanksgiving Day"
     return None
+
+
+def get_state_holidays_for_year(state_abbr: Optional[str], year: int) -> List[date]:
+    """Returns state-specific legal holidays not already covered by the
+    federal list, for FRCP 6(a)(6)(C) ("any other day declared a holiday by
+    the state where the district court is located"). Only covers states
+    FORGE has verified statutory text for -- returns an empty list for any
+    unrecognized or unpopulated state rather than guessing.
+
+    Currently populated: Maine only (FORGE's configured court is D. Maine).
+    Source: 20-A M.R.S. Sec 4802(1)(A) -- Patriot's Day, 3rd Monday in April.
+    This is the one Maine legal holiday not already covered by the federal
+    list (Maine's Indigenous Peoples' Day and MLK Day fall on the same dates
+    as the federal Columbus Day / MLK Day already checked above)."""
+    if not state_abbr:
+        return []
+    code = state_abbr.strip().upper()
+    if code in ("ME", "MAINE"):
+        return [_nth_weekday_of_month(year, 4, 0, 3)]
+    return []
 
 
 def is_dies_non(d: date, extra_state_holidays: Optional[List[date]] = None) -> bool:
@@ -178,6 +199,12 @@ class FRCPDeadlineEngine:
         """Computes a forward-counted deadline (X days AFTER an event) under
         FRCP 6(a)(1), with optional Rule 6(d) mail/service extension.
 
+        `state_for_holidays` (e.g. "ME") auto-populates verified state
+        holidays via get_state_holidays_for_year() for both the trigger
+        year and the following year (in case the raw count crosses a
+        year boundary), merged with any explicitly passed
+        `extra_state_holidays`.
+
         HALTS via MissingVariableError if trigger_date is not provided.
         """
         if trigger_date is None:
@@ -188,6 +215,11 @@ class FRCPDeadlineEngine:
                     "event, which cannot be identified without that date."
             )
 
+        state_holidays = list(extra_state_holidays or [])
+        if state_for_holidays:
+            state_holidays += get_state_holidays_for_year(state_for_holidays, trigger_date.year)
+            state_holidays += get_state_holidays_for_year(state_for_holidays, trigger_date.year + 1)
+
         rule_text_6a1 = self._get_rule_text("6(a)(1)")
         steps = [
             f"Rule 6(a)(1)(A): exclude {trigger_date.isoformat()} (the triggering "
@@ -195,6 +227,12 @@ class FRCPDeadlineEngine:
             f"Rule 6(a)(1)(B): count every day, including intermediate weekends "
             f"and legal holidays, for {period_days} days."
         ]
+        if state_for_holidays and state_holidays:
+            steps.append(
+                f"Rule 6(a)(6)(C): also treating {state_for_holidays}'s state-specific "
+                f"legal holidays as dies non for this computation: "
+                f"{', '.join(d.isoformat() for d in sorted(set(state_holidays)))}."
+            )
 
         deadline = trigger_date + timedelta(days=period_days)
         steps.append(
@@ -204,9 +242,13 @@ class FRCPDeadlineEngine:
 
         landed_on_dies_non = False
         dies_non_reason = None
-        while is_dies_non(deadline, extra_state_holidays):
-            reason = ("weekend" if deadline.weekday() >= 5
-                       else is_federal_legal_holiday(deadline))
+        while is_dies_non(deadline, state_holidays):
+            if deadline.weekday() >= 5:
+                reason = "weekend"
+            elif is_federal_legal_holiday(deadline):
+                reason = is_federal_legal_holiday(deadline)
+            else:
+                reason = f"{state_for_holidays} state holiday"
             landed_on_dies_non = True
             dies_non_reason = reason
             steps.append(
@@ -226,9 +268,13 @@ class FRCPDeadlineEngine:
                     f"added after the period would otherwise expire."
                 )
                 deadline = deadline + timedelta(days=added_days)
-                while is_dies_non(deadline, extra_state_holidays):
-                    reason = ("weekend" if deadline.weekday() >= 5
-                               else is_federal_legal_holiday(deadline))
+                while is_dies_non(deadline, state_holidays):
+                    if deadline.weekday() >= 5:
+                        reason = "weekend"
+                    elif is_federal_legal_holiday(deadline):
+                        reason = is_federal_legal_holiday(deadline)
+                    else:
+                        reason = f"{state_for_holidays} state holiday"
                     steps.append(
                         f"Rule 6(a)(1)(C) applied again after the 6(d) extension: "
                         f"{deadline.isoformat()} is a {reason}; rolls forward one day."
