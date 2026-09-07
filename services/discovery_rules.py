@@ -44,26 +44,57 @@ RULE_LIBRARY: dict[str, RuleEntry] = {
         verified_on="2026-09-07",
         status="verified_excerpt",
     ),
+    "FRCP 30(a)(2)(A)(i)": RuleEntry(
+        citation="FRCP 30(a)(2)(A)(i) - Leave for more than 10 depositions per side",
+        verified_text=(
+            "A party must obtain leave of court, and the court must grant leave to the "
+            "extent consistent with Rule 26(b)(1) and (2): if the parties have not "
+            "stipulated to the deposition and: (i) the deposition would result in more "
+            "than 10 depositions being taken under this rule or Rule 31 by the "
+            "plaintiffs, or by the defendants, or by the third-party defendants."
+        ),
+        source_url="https://www.law.cornell.edu/rules/frcp/rule_30",
+        verified_on="2026-09-07",
+        status="verified_excerpt",
+    ),
     "FRCP 30(d)(1)": RuleEntry(
         citation="FRCP 30(d)(1) - Duration",
-        verified_text=None,
+        verified_text=(
+            "Unless otherwise stipulated or ordered by the court, a deposition is "
+            "limited to 1 day of 7 hours. The court must allow additional time "
+            "consistent with Rule 26(b)(1) and (2) if needed to fairly examine the "
+            "deponent or if the deponent, another person, or any other circumstance "
+            "impedes or delays the examination."
+        ),
         source_url="https://www.law.cornell.edu/rules/frcp/rule_30",
-        verified_on=None,
-        status="not_yet_verified",
+        verified_on="2026-09-07",
+        status="verified_excerpt",
     ),
-    "FRCP 34": RuleEntry(
-        citation="FRCP 34 - Producing Documents",
-        verified_text=None,
+    "FRCP 34(b)(2)(A)": RuleEntry(
+        citation="FRCP 34(b)(2)(A) - Time to Respond",
+        verified_text=(
+            "The party to whom the request is directed must respond in writing within "
+            "30 days after being served or -- if the request was delivered under Rule "
+            "26(d)(2) -- within 30 days after the parties' first Rule 26(f) conference. "
+            "A shorter or longer time may be stipulated to under Rule 29 or be ordered "
+            "by the court."
+        ),
         source_url="https://www.law.cornell.edu/rules/frcp/rule_34",
-        verified_on=None,
-        status="not_yet_verified",
+        verified_on="2026-09-07",
+        status="verified_excerpt",
     ),
-    "FRCP 36": RuleEntry(
-        citation="FRCP 36 - Requests for Admission",
-        verified_text=None,
+    "FRCP 36(a)(3)": RuleEntry(
+        citation="FRCP 36(a)(3) - Time to Respond; Effect of Not Responding",
+        verified_text=(
+            "A matter is admitted unless, within 30 days after being served, the party "
+            "to whom the request is directed serves on the requesting party a written "
+            "answer or objection addressed to the matter and signed by the party or its "
+            "attorney. A shorter or longer time for responding may be stipulated to "
+            "under Rule 29 or be ordered by the court."
+        ),
         source_url="https://www.law.cornell.edu/rules/frcp/rule_36",
-        verified_on=None,
-        status="not_yet_verified",
+        verified_on="2026-09-07",
+        status="verified_excerpt",
     ),
     "D.Me. Local Rules": RuleEntry(
         citation="District of Maine Local Rules",
@@ -95,3 +126,7 @@ def get_rule(key: str) -> str:
 def rule_status(key: str) -> str:
     entry = RULE_LIBRARY.get(key)
     return entry.status if entry else "unknown"
+
+
+def all_verified_keys() -> list[str]:
+    return [key for key, entry in RULE_LIBRARY.items() if entry.status == "verified_excerpt"]

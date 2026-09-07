@@ -1,6 +1,6 @@
 from services.interrogatory_service import InterrogatoryService, MissingDiscoveryVariableError
 from services.deposition_service import DepositionTopicService
-from services.discovery_rules import get_rule, rule_status
+from services.discovery_rules import get_rule, rule_status, all_verified_keys
 
 
 def test_topic_requires_target_party():
@@ -49,7 +49,27 @@ def test_verified_rule_is_quoted_with_source():
     assert rule_status("FRCP 33(a)(1)") == "verified_excerpt"
 
 
-def test_unverified_rule_declines_to_guess():
-    text = get_rule("FRCP 30(d)(1)")
+def test_deposition_rules_are_verified():
+    assert rule_status("FRCP 30(d)(1)") == "verified_excerpt"
+    assert rule_status("FRCP 30(a)(2)(A)(i)") == "verified_excerpt"
+    assert "1 day of 7 hours" in get_rule("FRCP 30(d)(1)")
+    assert "10 depositions" in get_rule("FRCP 30(a)(2)(A)(i)")
+
+
+def test_production_and_admission_rules_are_verified():
+    assert rule_status("FRCP 34(b)(2)(A)") == "verified_excerpt"
+    assert rule_status("FRCP 36(a)(3)") == "verified_excerpt"
+    assert "30 days" in get_rule("FRCP 34(b)(2)(A)")
+    assert "30 days" in get_rule("FRCP 36(a)(3)")
+
+
+def test_unverified_local_rules_decline_to_guess():
+    text = get_rule("D.Me. Local Rules")
     assert "I do not have a verified excerpt" in text
-    assert rule_status("FRCP 30(d)(1)") == "not_yet_verified"
+    assert rule_status("D.Me. Local Rules") == "not_yet_verified"
+
+
+def test_all_verified_keys_returns_only_verified_entries():
+    keys = all_verified_keys()
+    assert "FRCP 33(a)(1)" in keys
+    assert "D.Me. Local Rules" not in keys

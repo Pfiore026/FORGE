@@ -21,7 +21,7 @@ from services.interrogatory_service import (
     CATEGORY_OPTIONS, InterrogatoryService, MissingDiscoveryVariableError,
 )
 from services.deposition_service import DepositionTopicService
-from services.discovery_rules import get_rule, rule_status
+from services.discovery_rules import get_rule, rule_status, all_verified_keys
 
 st.set_page_config(page_title="FORGE - Discovery Workspace", page_icon="scales", layout="centered")
 
@@ -154,10 +154,24 @@ def render_interrogatory_deposition_bridge():
         st.markdown(f"- **{left}** -> {right}")
 
 
+def render_verified_rule_library():
+    st.markdown("### Verified Rule Library")
+    st.caption(
+        "FORGE only quotes rule text it has fetched and verified, with a source link "
+        "and verification date. Anything not listed here has not been verified yet."
+    )
+    for key in all_verified_keys():
+        st.caption(get_rule(key))
+        st.divider()
+
+
 def render_interrogatory_planner():
     st.markdown("### Interrogatory Planner")
     st.caption(get_rule("FRCP 33(a)(1)"))
     st.caption(get_rule("FRCP 26(d)(1)"))
+    with st.expander("Related: document requests and admissions (for cross-linking, not drafting)"):
+        st.caption(get_rule("FRCP 34(b)(2)(A)"))
+        st.caption(get_rule("FRCP 36(a)(3)"))
 
     facts = [fc for fc in fact_service.for_case(case_id) if getattr(fc, "status", None) == "confirmed"]
     if not facts:
@@ -229,6 +243,7 @@ def render_interrogatory_planner():
 def render_deposition_panel():
     st.markdown("### Deposition Preparation Topics")
     st.caption(get_rule("FRCP 30(d)(1)"))
+    st.caption(get_rule("FRCP 30(a)(2)(A)(i)"))
 
     facts = [fc for fc in fact_service.for_case(case_id) if getattr(fc, "status", None) == "confirmed"]
     fact_labels = {fc.id: fc.normalized_statement for fc in facts}
@@ -305,6 +320,8 @@ with tab_learn:
     render_discovery_briefing()
     st.divider()
     render_interrogatory_deposition_bridge()
+    st.divider()
+    render_verified_rule_library()
 
 with tab_int:
     render_interrogatory_planner()
