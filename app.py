@@ -20,7 +20,7 @@ from services.completeness import SECOND_LOOK_WARNING
 from services.deadline_service import DeadlineService, KNOWN_TRIGGERS
 from services.deadline_engine import MissingVariableError
 from services.ui_theme import inject_theme, render_hero, render_stepper, render_chip, render_severity_badge
-from services.db import restore_session_if_present, sign_in, sign_up, sign_out, current_user_email
+from services.db import restore_session_if_present, sign_in, sign_up, sign_out, current_user_email, get_session_client
 
 st.set_page_config(page_title="FORGE - Your Path to Justice", page_icon="scales", layout="centered")
 inject_theme()
@@ -29,13 +29,7 @@ inject_theme()
 def render_auth_gate():
     """Blocks all app access until the user signs in or creates an account.
     Returns the authenticated user's real UUID (from Supabase Auth) -- this
-    replaces the previous hardcoded "demo-user-0001" placeholder. Nothing
-    past this point runs until sign-in succeeds. NOTE: this wires real
-    identity into FORGE; the in-memory services below still do not persist
-    to the database yet (that is a separate, larger migration) -- signing
-    in today establishes WHO you are, which is the prerequisite for that
-    next step, but your case data still lives only in this browser session
-    until the service layer is rewired to the real tables."""
+    replaces the previous hardcoded "demo-user-0001" placeholder."""
     existing_user_id = restore_session_if_present()
     if existing_user_id:
         with st.sidebar:
@@ -89,25 +83,33 @@ def render_auth_gate():
 
 
 def init_services(authenticated_user_id: str):
+    client = get_session_client()
     if "audit" not in st.session_state:
-        st.session_state.audit = AuditService()
+        st.session_state.audit = AuditService(client)
     if "case_service" not in st.session_state:
-        st.session_state.case_service = CaseService(st.session_state.audit)
+        st.session_state.case_service = CaseService(st.session_state.audit, client)
     if "document_service" not in st.session_state:
-        st.session_state.document_service = DocumentService(st.session_state.audit)
+        st.session_state.document_service = DocumentService(st.session_state.audit, client)
     if "fact_service" not in st.session_state:
-        st.session_state.fact_service = FactCardService(st.session_state.audit)
+        st.session_state.fact_service = FactCardService(st.session_state.audit, client)
     if "contradiction_service" not in st.session_state:
-        st.session_state.contradiction_service = ContradictionService(st.session_state.audit)
+        st.session_state.contradiction_service = ContradictionService(st.session_state.audit, client)
     if "timeline_service" not in st.session_state:
-        st.session_state.timeline_service = TimelineService(st.session_state.audit)
+        st.session_state.timeline_service = TimelineService(st.session_state.audit, client)
     if "deadline_service" not in st.session_state:
-        st.session_state.deadline_service = DeadlineService(st.session_state.audit)
+        st.session_state.deadline_service = DeadlineService(st.session_state.audit, client)
     if "user_id" not in st.session_state:
         st.session_state.user_id = authenticated_user_id
     if "case_id" not in st.session_state:
-        profile = st.session_state.case_service.create_case(st.session_state.user_id, "My FORGE Case")
-        st.session_state.case_id = profile.id
+        existing_cases = st.session_state.case_service.for_user(st.session_state.user_id)
+        if existing_cases:
+            # Resume the user's most recently active case instead of
+            # silently creating a new empty one every session -- this is
+            # the whole point of real persistence.
+            st.session_state.case_id = existing_cases[0].id
+        else:
+            profile = st.session_state.case_service.create_case(st.session_state.user_id, "My FORGE Case")
+            st.session_state.case_id = profile.id
     if "forge_step" not in st.session_state:
         st.session_state.forge_step = 1
 
