@@ -20,12 +20,75 @@ from services.completeness import SECOND_LOOK_WARNING
 from services.deadline_service import DeadlineService, KNOWN_TRIGGERS
 from services.deadline_engine import MissingVariableError
 from services.ui_theme import inject_theme, render_hero, render_stepper, render_chip, render_severity_badge
+from services.db import restore_session_if_present, sign_in, sign_up, sign_out, current_user_email
 
 st.set_page_config(page_title="FORGE - Your Path to Justice", page_icon="scales", layout="centered")
 inject_theme()
 
 
-def init_services():
+def render_auth_gate():
+    """Blocks all app access until the user signs in or creates an account.
+    Returns the authenticated user's real UUID (from Supabase Auth) -- this
+    replaces the previous hardcoded "demo-user-0001" placeholder. Nothing
+    past this point runs until sign-in succeeds. NOTE: this wires real
+    identity into FORGE; the in-memory services below still do not persist
+    to the database yet (that is a separate, larger migration) -- signing
+    in today establishes WHO you are, which is the prerequisite for that
+    next step, but your case data still lives only in this browser session
+    until the service layer is rewired to the real tables."""
+    existing_user_id = restore_session_if_present()
+    if existing_user_id:
+        with st.sidebar:
+            st.caption(f"Signed in as {current_user_email()}")
+            if st.button("Sign out", use_container_width=True, key="sign_out_btn"):
+                sign_out()
+                st.rerun()
+        return existing_user_id
+
+    render_hero()
+    st.markdown("### Sign in or create an account to continue")
+    st.caption(
+        "FORGE keeps every case private to the account that created it. "
+        "Signing in is required so your documents and facts are saved "
+        "and only ever visible to you."
+    )
+
+    tab_signin, tab_signup = st.tabs(["Sign In", "Create Account"])
+
+    with tab_signin:
+        with st.form("sign_in_form"):
+            email = st.text_input("Email", key="signin_email")
+            password = st.text_input("Password", type="password", key="signin_password")
+            submitted = st.form_submit_button("Sign In", type="primary", use_container_width=True)
+        if submitted:
+            result = sign_in(email, password)
+            if result["success"]:
+                st.rerun()
+            else:
+                st.error(result["message"])
+
+    with tab_signup:
+        with st.form("sign_up_form"):
+            new_email = st.text_input("Email", key="signup_email")
+            new_password = st.text_input("Password (at least 8 characters)", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirm password", type="password", key="signup_confirm")
+            submitted_up = st.form_submit_button("Create Account", type="primary", use_container_width=True)
+        if submitted_up:
+            if len(new_password) < 8:
+                st.error("Password must be at least 8 characters.")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match.")
+            else:
+                result = sign_up(new_email, new_password)
+                if result["success"]:
+                    st.success(result["message"])
+                else:
+                    st.error(result["message"])
+
+    st.stop()
+
+
+def init_services(authenticated_user_id: str):
     if "audit" not in st.session_state:
         st.session_state.audit = AuditService()
     if "case_service" not in st.session_state:
@@ -41,7 +104,7 @@ def init_services():
     if "deadline_service" not in st.session_state:
         st.session_state.deadline_service = DeadlineService(st.session_state.audit)
     if "user_id" not in st.session_state:
-        st.session_state.user_id = "demo-user-0001"
+        st.session_state.user_id = authenticated_user_id
     if "case_id" not in st.session_state:
         profile = st.session_state.case_service.create_case(st.session_state.user_id, "My FORGE Case")
         st.session_state.case_id = profile.id
@@ -49,7 +112,8 @@ def init_services():
         st.session_state.forge_step = 1
 
 
-init_services()
+authenticated_user_id = render_auth_gate()
+init_services(authenticated_user_id)
 
 case_service = st.session_state.case_service
 document_service = st.session_state.document_service
