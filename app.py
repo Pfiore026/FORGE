@@ -81,6 +81,22 @@ def go_to(step: int):
     st.rerun()
 
 
+def render_official_file_banner():
+    """Persistent guidance: FORGE's output quality depends entirely on what
+    the user provides. Encourages retrieving the official docket/case file
+    from the court, which is not required but materially improves results."""
+    st.info(
+        "**Get your official case file if you can.** FORGE only knows what you give it -- "
+        "the results below are only as complete and accurate as the documents you upload. "
+        "If your matter has been filed, consider requesting your official docket and case "
+        "file from the court clerk (for federal cases, this is available through PACER, "
+        "or the clerk's office can provide copies). You do not need certified or official "
+        "copies for FORGE to use them, but the official docket sheet, filed orders, and "
+        "proof of service give FORGE the most reliable material to work with -- and give "
+        "you the court's own record of every deadline and filing in your case."
+    )
+
+
 EVENT_TYPE_OPTIONS = [
     "Arrest, detention, or criminal charge", "Police or law-enforcement encounter",
     "Search, seizure, or property taken", "Injury or use-of-force incident",
@@ -91,6 +107,7 @@ EVENT_TYPE_OPTIONS = [
 DOCUMENT_CATEGORY_OPTIONS = [
     "Complaint, petition, answer, or other court filing", "Court order, notice, or scheduling order",
     "Docket sheet", "Summons or service document", "Police, arrest, or incident report",
+    "Affidavit, declaration, or sworn statement (under oath)",
     "Criminal docket, judgment, or disposition",
     "Photograph, video, medical record, email, letter, or message", "I do not have a document ready",
 ]
@@ -98,9 +115,10 @@ DOCUMENT_CATEGORY_OPTIONS = [
 DOCUMENT_CATEGORY_TO_GUIDANCE = {
     "Complaint, petition, answer, or other court filing": "Upload every page, including exhibits if available.",
     "Court order, notice, or scheduling order": "Upload the full order. Note any stated deadlines when reviewing extracted facts.",
-    "Docket sheet": "Upload the most recent full docket, not a partial screenshot.",
+    "Docket sheet": "Upload the most recent full docket, not a partial screenshot. Requesting this directly from the court clerk or PACER gives FORGE the most reliable version.",
     "Summons or service document": "Upload all pages, including the proof of service if attached.",
-    "Police, arrest, or incident report": "Upload the entire report, including supplements if you have them.",
+    "Police, arrest, or incident report": "Upload the entire report, including supplements if you have them. FORGE applies heightened scrutiny to inconsistencies across these and sworn statements.",
+    "Affidavit, declaration, or sworn statement (under oath)": "Upload the complete signed statement. FORGE applies heightened scrutiny to inconsistencies between this and other sworn statements or police reports.",
     "Criminal docket, judgment, or disposition": "Upload the docket sheet and any judgment or dismissal order.",
     "Photograph, video, medical record, email, letter, or message": "Upload the file as-is.",
     "I do not have a document ready": "That is okay. You can add a document later.",
@@ -349,6 +367,7 @@ def step_3():
 
 def step_4():
     render_progress()
+    render_official_file_banner()
     st.write("You do not need to upload everything. Choose the document that best explains "
              "where your matter stands today.")
 
@@ -464,8 +483,9 @@ def step_5():
 
     docs = document_service.for_case(case_id)
     facts = fact_service.for_case(case_id)
+    document_categories = document_service.category_lookup(case_id)
 
-    new_contradictions = fact_service.scan_contradictions(case_id)
+    new_contradictions = fact_service.scan_contradictions(case_id, document_categories=document_categories)
     contradiction_service.store(new_contradictions, user_id)
     stale_facts = fact_service.scan_decay(case_id)
     unresolved_contradictions = contradiction_service.unresolved_for_case(case_id)
@@ -585,6 +605,66 @@ def step_5():
                         st.rerun()
 
 
+def render_proof_of_service_panel():
+    """FRCP 4(l)/4(m): tracks whether proof of service has been filed, and
+    lets the user compute the Rule 4(m) 90-day service deadline. Never
+    infers status -- always an explicit user selection."""
+    st.markdown("### Proof of Service")
+    st.caption(
+        "Under FRCP 4(l)(1), unless service is waived, proof of service must be filed with the "
+        "court -- usually the process server's signed affidavit. Under FRCP 4(m), if a defendant "
+        "is not served within 90 days after the complaint is filed, the court may dismiss the "
+        "action against that defendant unless you show good cause for the delay."
+    )
+
+    current_status = profile.proof_of_service_status
+    status_options = ["Not yet addressed", "Filed with the court", "Not yet filed",
+                       "Defendant returned a waiver (Rule 4(d))", "Not applicable to my case", "I am not sure"]
+    status_map = {
+        "Not yet addressed": None, "Filed with the court": "filed", "Not yet filed": "not_yet_filed",
+        "Defendant returned a waiver (Rule 4(d))": "waived",
+        "Not applicable to my case": "not_applicable", "I am not sure": "unsure",
+    }
+    reverse_map = {v: k for k, v in status_map.items()}
+    current_label = reverse_map.get(current_status, "Not yet addressed")
+
+    selected = st.selectbox(
+        "Has proof of service been filed with the court?",
+        status_options, index=status_options.index(current_label), key="proof_of_service_select",
+    )
+    if status_map[selected] != current_status:
+        case_service.update_fields(case_id, user_id, proof_of_service_status=status_map[selected])
+        st.rerun()
+
+    if status_map[selected] == "waived":
+        st.write(deadline_service.cite("4(d)(4)"))
+    elif status_map[selected] in (None, "not_yet_filed", "unsure"):
+        st.write(deadline_service.cite("4(l)(1)"))
+        if status_map[selected] == "not_yet_filed":
+            st.warning(
+                "Proof of service has not been filed yet. If service has actually been "
+                "completed, file the affidavit of service with the court as soon as possible."
+            )
+
+    with st.form("service_deadline_form"):
+        st.caption("Calculate the FRCP 4(m) service deadline (90 days from when the complaint was filed):")
+        filed_date = st.date_input("Date the complaint was filed", value=None,
+                                     max_value=datetime.date.today(), key="service_deadline_filed_date")
+        submitted = st.form_submit_button("Calculate Rule 4(m) service deadline")
+
+    if submitted:
+        try:
+            preset = KNOWN_TRIGGERS["Complaint filed with the court (Rule 4(m) service deadline)"]
+            comp = deadline_service.compute(
+                case_id, user_id, trigger_event="Complaint filed with the court (Rule 4(m) service deadline)",
+                trigger_date=filed_date, rule_cited=preset["rule_cited"], period_days=preset["period_days"],
+            )
+            st.success(f"Service must be completed by: {comp.resulting_deadline.isoformat()}")
+            st.write(deadline_service.cite("4(m)"))
+        except MissingVariableError as e:
+            st.error(e.question)
+
+
 def render_workspace():
     """Post-intake Case Workspace. Renders the Case Timeline and the FRCP
     Rule 6 Deadline Table (OUTPUT_FORMATS from the FORGE master prompt).
@@ -598,6 +678,10 @@ def render_workspace():
 
     st.markdown("## Your Case Workspace")
     st.caption("Educated. Organized. Never Alone.")
+    render_official_file_banner()
+
+    render_proof_of_service_panel()
+    st.divider()
 
     events = timeline_service.for_case(case_id)
 
