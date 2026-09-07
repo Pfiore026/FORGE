@@ -56,6 +56,16 @@ class CaseProfile:
     assigned_magistrate_judge: Optional[str] = None
     judge_practices_status: str = "not_applicable_yet"
 
+    # FRCP 4(l)/4(m): tracked separately from judge/case-number fields because
+    # proof of service has its own filing requirement and its own deadline
+    # (service must be completed within 90 days of filing under Rule 4(m)),
+    # independent of whether a judge has been assigned yet.
+    # Values: None (not yet addressed), "filed" (affidavit of service filed
+    # with the court), "not_yet_filed", "waived" (defendant returned a Rule
+    # 4(d) waiver, so proof of service is not required), "not_applicable"
+    # (e.g., user has not filed a civil case), "unsure".
+    proof_of_service_status: Optional[str] = None
+
     first_document_category: Optional[str] = None
 
     intake_completed: bool = False
