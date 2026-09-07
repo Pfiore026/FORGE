@@ -10,7 +10,14 @@ from typing import List, Optional
 import re
 import uuid
 
+EXTRACTION_UNAVAILABLE_MARKER = "[FORGE_EXTRACTION_UNAVAILABLE]"
+
 COMPLETENESS_CHECKS = [
+    {"check": "Text extraction", "looks_for": "Whether FORGE was actually able to read machine-readable "
+     "text from this file at all",
+     "if_flagged": "Red flag if extraction failed or was unavailable (e.g., an image with no OCR engine, "
+     "or a scanned PDF with no text layer) -- every other check below is skipped for that document, "
+     "since there is no real text to check"},
     {"check": "Page continuity", "looks_for": "No pages detected, or embedded 'Page X of Y' markers "
      "that skip, repeat, or disagree on the total page count",
      "if_flagged": "Red flag if no pages detected; amber flag if page markers are out of sequence"},
@@ -99,8 +106,15 @@ def _check_page_sequence(text: str) -> Optional[str]:
 def run_completeness_check(document_category: str, page_count, extracted_text: str,
                             ocr_confidence, existing_document_hashes: Optional[List[str]] = None,
                             this_hash: Optional[str] = None) -> List[CompletenessFlag]:
-    flags: List[CompletenessFlag] = []
     text = extracted_text or ""
+
+    if text.startswith(EXTRACTION_UNAVAILABLE_MARKER):
+        return [CompletenessFlag(
+            check_name="Text extraction", severity="red",
+            detail=text.replace(EXTRACTION_UNAVAILABLE_MARKER, "").strip(),
+        )]
+
+    flags: List[CompletenessFlag] = []
     text_lower = text.lower()
 
     exhibit_markers = ["exhibit a", "exhibit b", "exhibit 1", "exhibit 2", "attachment 1", "see exhibit"]
