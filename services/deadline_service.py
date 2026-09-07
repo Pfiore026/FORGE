@@ -1,30 +1,24 @@
 """
 services/deadline_service.py
 
-Wires FRCPDeadlineEngine + RuleCitationStore into the same audit-logged
-service pattern used by CaseService, DocumentService, FactCardService,
-ContradictionService, and TimelineService (see services/case_service.py).
+Wires FRCPDeadlineEngine + RuleCitationStore into real Postgres persistence
+(public.computed_deadlines), via the authenticated session's Supabase
+client. The deadline math itself (services/deadline_engine.py) is pure
+logic and unchanged -- this module only adds the read/write layer that was
+previously an in-memory dict with no real database table backing it at all.
 
-This is the missing link between the timeline events FORGE already collects
-(TimelineService) and the Deadline Table required by the master prompt's
-OUTPUT_FORMATS. It never guesses: MissingVariableError propagates up to
-the UI layer, which must surface the .question to the user per
-CRITICAL_OVERRIDE: PROACTIVE_CLARIFICATION.
+RLS on computed_deadlines (case_id must belong to a case owned by
+auth.uid()) means the database itself enforces per-user isolation here too.
 """
 from __future__ import annotations
+from datetime import date
 from typing import Optional, Dict, List
-import json
 
 from .deadline_engine import FRCPDeadlineEngine, DeadlineComputation, MissingVariableError
 from .citation_guard import RuleCitationStore
 
 DEFAULT_CORPUS_PATH = "data/frcp_rules_corpus.json"
 
-# Convenience presets so the UI can offer a dropdown of common triggering
-# events instead of requiring free-text rule numbers. This layer never
-# overrides the Strict Citation Mandate -- every rule listed here has
-# verbatim text loaded in data/frcp_rules_corpus.json, and citation lookups
-# still go through RuleCitationStore, which refuses on any miss.
 KNOWN_TRIGGERS = {
     "Complaint filed with the court (Rule 4(m) service deadline)": {
         "rule_cited": "FRCP 4(m)", "period_days": 90,
@@ -53,18 +47,33 @@ KNOWN_TRIGGERS = {
 }
 
 
-class DeadlineService:
-    """Same shape as the other FORGE services: takes an AuditService,
-    exposes case-scoped compute/read methods, and logs every write."""
+def _row_to_computation(row: dict) -> DeadlineComputation:
+    return DeadlineComputation(
+        rule_cited=row.get("rule_cited") or "", rule_text="",
+        trigger_event=row.get("trigger_event") or "",
+        trigger_date=date.fromisoformat(row["trigger_date"]),
+        raw_period_days=row.get("period_days") or 0, service_method=row.get("service_method"),
+        added_days_rule_6d=row.get("added_days_rule_6d") or 0,
+        landed_on_dies_non=row.get("landed_on_dies_non") or False, dies_non_reason=row.get("dies_non_reason"),
+        resulting_deadline=date.fromisoformat(row["resulting_deadline"]),
+        computation_steps=row.get("computation_steps") or [],
+        local_rule_modifier=row.get("local_rule_modifier"), judge_practice_modifier=row.get("judge_practice_modifier"),
+    )
 
-    def __init__(self, audit, corpus_path: str = DEFAULT_CORPUS_PATH):
+
+class DeadlineService:
+    """Same shape as the other FORGE services: takes an AuditService and a
+    Supabase client, exposes case-scoped compute/read methods, and logs
+    every write."""
+
+    def __init__(self, audit, client, corpus_path: str = DEFAULT_CORPUS_PATH):
         self.audit = audit
+        self.client = client
+        import json
         with open(corpus_path) as f:
             corpus = json.load(f)
         self.engine = FRCPDeadlineEngine(corpus)
         self.citations = RuleCitationStore(corpus)
-        self.deadlines: Dict[str, DeadlineComputation] = {}
-        self._case_index: Dict[str, List[str]] = {}
 
     def compute(self, case_id, user_id, trigger_event, trigger_date, rule_cited,
                 period_days, service_method=None, local_rule_text=None,
@@ -77,23 +86,41 @@ class DeadlineService:
             local_rule_text=local_rule_text, judge_practice_text=judge_practice_text,
             state_for_holidays=state_for_holidays,
         )
-        key = f"{case_id}:{trigger_event}:{rule_cited}"
-        self.deadlines[key] = computation
-        self._case_index.setdefault(case_id, [])
-        if key not in self._case_index[case_id]:
-            self._case_index[case_id].append(key)
-        self.audit.record(case_id, user_id, "deadline_computed", "deadline", key, {
-            "rule_cited": rule_cited,
-            "trigger_event": trigger_event,
+
+        payload = {
+            "case_id": case_id, "rule_cited": rule_cited, "trigger_event": trigger_event,
+            "trigger_date": computation.trigger_date.isoformat(), "period_days": period_days,
+            "service_method": service_method, "added_days_rule_6d": computation.added_days_rule_6d,
+            "landed_on_dies_non": computation.landed_on_dies_non, "dies_non_reason": computation.dies_non_reason,
             "resulting_deadline": computation.resulting_deadline.isoformat(),
-            "added_days_rule_6d": computation.added_days_rule_6d,
-        })
+            "computation_steps": computation.computation_steps,
+            "local_rule_modifier": local_rule_text, "judge_practice_modifier": judge_practice_text,
+        }
+
+        existing = (
+            self.client.table("computed_deadlines").select("id")
+            .eq("case_id", case_id).eq("trigger_event", trigger_event).eq("rule_cited", rule_cited)
+            .execute()
+        )
+        if existing.data:
+            self.client.table("computed_deadlines").update(payload).eq("id", existing.data[0]["id"]).execute()
+        else:
+            self.client.table("computed_deadlines").insert(payload).execute()
+
+        self.audit.record(case_id, user_id, "deadline_computed", "deadline",
+                           f"{case_id}:{trigger_event}:{rule_cited}", {
+                               "rule_cited": rule_cited, "trigger_event": trigger_event,
+                               "resulting_deadline": computation.resulting_deadline.isoformat(),
+                               "added_days_rule_6d": computation.added_days_rule_6d,
+                           })
         return computation
 
     def for_case(self, case_id: str) -> List[DeadlineComputation]:
-        keys = self._case_index.get(case_id, [])
-        items = [self.deadlines[k] for k in keys]
-        return sorted(items, key=lambda c: c.resulting_deadline)
+        resp = (
+            self.client.table("computed_deadlines").select("*").eq("case_id", case_id)
+            .order("resulting_deadline").execute()
+        )
+        return [_row_to_computation(r) for r in (resp.data or [])]
 
     def cite(self, rule_id: str) -> str:
         """Never throws -- returns verbatim text or the mandated refusal
