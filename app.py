@@ -612,6 +612,27 @@ def render_workspace():
                 st.markdown(f"{ev.event_date or 'UNKNOWN DATE'} - {ev.title} ({ev.event_type})")
                 st.caption(f"Source: {ev.source_type} - {ev.description or 'No description provided.'}")
 
+    from services.timeline_engine import to_markdown_table, to_json, unknown_date_events
+    with st.expander("View structured Case Timeline (OUTPUT_FORMATS export)"):
+        st.caption(
+            "This is the strict Date / Event Title / Event Type / Source / Contribution "
+            "table format required by FORGE's master prompt. Contribution to Case is "
+            "derived mechanically from known deadline triggers or your own description -- "
+            "never invented."
+        )
+        if events:
+            st.markdown(to_markdown_table(events))
+            pending = unknown_date_events(events)
+            if pending:
+                st.warning(
+                    f"{len(pending)} event(s) have no date on file: "
+                    f"{', '.join(e.title for e in pending)}. Add a date from Step 2 or a "
+                    "document upload to complete the chronology."
+                )
+            st.code(to_json(events), language="json")
+        else:
+            st.caption("No events to export yet.")
+
     st.divider()
     st.markdown("### Deadlines")
     st.caption(
