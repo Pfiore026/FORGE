@@ -12,6 +12,12 @@ Design language:
   - Accent: cyan -> violet -> magenta gradient (the "Forge Arc")
   - Surfaces: frosted glass panels (blurred, translucent, thin glowing border)
   - Motion: soft easing on hover/focus, a slow ambient pulse on the active step
+
+Severity language: every colored indicator in the app (fact-strength tiers,
+completeness-flag severity, contradiction severity) now routes through
+render_severity_badge() below, so "red/amber/green/info" always means the
+same three CSS variables everywhere, instead of each call site inventing
+its own bracket-icon convention.
 """
 import streamlit as st
 
@@ -313,6 +319,26 @@ section[data-testid="stSidebar"] * { color: var(--forge-text); }
     -webkit-text-fill-color: transparent;
 }
 
+.forge-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(255,255,255,0.03);
+}
+.forge-badge::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--forge-bg); }
 ::-webkit-scrollbar-thumb {
@@ -329,6 +355,13 @@ hr {
 }
 </style>
 """
+
+SEVERITY_COLOR_VAR = {
+    "strong": "var(--forge-green)", "moderate": "var(--forge-amber)", "weak": "var(--forge-red)",
+    "green": "var(--forge-green)", "amber": "var(--forge-amber)", "red": "var(--forge-red)",
+    "high": "var(--forge-red)", "medium": "var(--forge-amber)", "low": "var(--forge-cyan)",
+    "info": "var(--forge-cyan)",
+}
 
 
 def inject_theme():
@@ -354,10 +387,7 @@ def render_hero(title: str = "FORGE", tagline: str = "Educated. Organized. Never
 def render_stepper(step_labels: dict, current_step: int, extra_step_label: str = None,
                     extra_step_active: bool = False):
     """Renders the sidebar step tracker as a glowing vertical stepper instead
-    of plain markdown bullets. `step_labels` is {int: str}; steps with a
-    number lower than current_step are marked done, the current step pulses,
-    and later steps are dim. `extra_step_label` (e.g. 'Case Workspace') is
-    appended as a final node, active when extra_step_active is True."""
+    of plain markdown bullets."""
     rows = []
     for n, label in step_labels.items():
         if extra_step_active:
@@ -385,5 +415,18 @@ def render_chip(label: str, value: str):
     """Small glass pill used for the Foundation-strength readout."""
     st.markdown(
         f'<div class="forge-chip">{label}: <span class="forge-chip-value">{value}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_severity_badge(label: str, severity_key: str):
+    """Small glowing pill for any severity/strength indicator in the app.
+    `severity_key` should be one of the keys in SEVERITY_COLOR_VAR (fact
+    strength tiers, or completeness/contradiction severity vocabularies).
+    Falls back to muted gray for an unrecognized key rather than guessing
+    a color."""
+    color = SEVERITY_COLOR_VAR.get(severity_key, "var(--forge-muted)")
+    st.markdown(
+        f'<span class="forge-badge" style="color:{color};">{label}</span>',
         unsafe_allow_html=True,
     )
